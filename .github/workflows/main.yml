@@ -1,0 +1,31 @@
+name: macOS VNC Server
+on: 
+  workflow_dispatch:
+
+jobs:
+  build:
+    # ⚠️ CHANGED: 'macos-latest' is too new and blocks VNC. 
+    # We must use 'macos-12' (Monterey) for VNC to work without permission popups.
+    runs-on: macos-12
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setting up Environment & Installing VNC
+      env:
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        USER_PASS: ${{ secrets.USER_PASS }} 
+        VNC_PASS: ${{ secrets.VNC_PASS }}
+      run: |
+        chmod +x setup.sh
+        ./setup.sh "$USER_PASS" "$VNC_PASS" "$NGROK_AUTH_TOKEN"
+
+    - name: Get VNC Connection Info
+      run: |
+        echo "Waiting for tunnel..."
+        sleep 10
+        echo "✅ VNC CONNECTION ADDRESS:"
+        curl --silent http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url'
+
+    - name: Keep Alive (Tmate)
+      uses: mxschmitt/action-tmate@v3
