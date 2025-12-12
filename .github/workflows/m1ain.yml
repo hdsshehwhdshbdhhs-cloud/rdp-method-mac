@@ -1,0 +1,55 @@
+name: Linux Remote Desktop
+on: 
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Desktop (XFCE) & VNC
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xfce4 xfce4-terminal tightvncserver dbus-x11
+        
+    - name: Configure VNC Password
+      env:
+        # Make sure you have the 'VNC_PASS' secret set in your Repo Settings
+        VNC_PASS: ${{ secrets.VNC_PASS }}
+      run: |
+        mkdir -p ~/.vnc
+        echo "$VNC_PASS" | vncpasswd -f > ~/.vnc/passwd
+        chmod 600 ~/.vnc/passwd
+        
+    - name: Setup XFCE Startup
+      run: |
+        echo "#!/bin/bash" > ~/.vnc/xstartup
+        echo "xrdb $HOME/.Xresources" >> ~/.vnc/xstartup
+        echo "startxfce4 &" >> ~/.vnc/xstartup
+        chmod +x ~/.vnc/xstartup
+
+    - name: Start VNC Server
+      run: |
+        vncserver :1 -geometry 1280x720 -depth 24
+
+    - name: Start Ngrok Tunnel
+      env:
+        # Make sure you have the 'NGROK_AUTH_TOKEN' secret set
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+      run: |
+        curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+        echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+        sudo apt-get update && sudo apt-get install ngrok
+        ngrok authtoken $NGROK_AUTH_TOKEN
+        ngrok tcp 5901 --region=in > /dev/null 2>&1 &
+
+    - name: Get Connection Info
+      run: |
+        echo "Waiting for tunnel..."
+        sleep 10
+        echo "✅ USE THIS ADDRESS IN VNC VIEWER:"
+        curl --silent http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url'
+
+    - name: Keep Alive
+      uses: mxschmitt/action-tmate@v3
