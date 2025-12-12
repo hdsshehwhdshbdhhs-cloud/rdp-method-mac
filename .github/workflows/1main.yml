@@ -1,0 +1,29 @@
+name: macOS VNC Server v1
+on: 
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setting up Environment & Installing VNC
+      env:
+        # Create these 3 secrets in your Repository Settings -> Secrets and Variables -> Actions
+        NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        USER_PASS: ${{ secrets.USER_PASS }} 
+        VNC_PASS: ${{ secrets.VNC_PASS }}
+      run: |
+        chmod +x setup.sh
+        ./setup.sh "$USER_PASS" "$VNC_PASS" "$NGROK_AUTH_TOKEN"
+
+    - name: Get VNC Connection Info
+      run: |
+        echo "Waiting for tunnel..."
+        sleep 5
+        echo "✅ VNC CONNECTION ADDRESS:"
+        curl --silent http://127.0.0.1:4040/api/tunnels | jq -r '.tunnels[0].public_url'
+
+    - name: Keep Alive (Tmate)
+      uses: mxschmitt/action-tmate@v3
